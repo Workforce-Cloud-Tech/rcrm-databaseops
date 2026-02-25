@@ -15,7 +15,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
           echo "Upload done!"
   create-rollout:
     needs: build
-    runs-on: ubuntu-latest # use self-hosted machines if your Bytebase runs in internal networks.
+    runs-on: self-hosted
     container:
       image: docker://bytebase/bytebase-action:latest
     outputs:
@@ -38,7 +38,6 @@ jobs:
       - name: Roll out database change
         env:
           BYTEBASE_TARGETS: "instances/test-sample-instance/databases/hr_test,instances/prod-sample-instance/databases/hr_prod"
-          # Update these targets to match your Bytebase instance/database names
           FILE_PATTERN: "migrations-semver/*.sql"
           BYTEBASE_OUTPUT: ${{ runner.temp }}/bytebase-metadata.json
         run: |
@@ -50,7 +49,7 @@ jobs:
           echo "plan=$PLAN" >> $GITHUB_OUTPUT
   deploy-to-test:
     needs: create-rollout
-    runs-on: ubuntu-latest # use self-hosted machines if your Bytebase runs in internal networks.
+    runs-on: self-hosted
     environment: test
     container:
       image: docker://bytebase/bytebase-action:latest
@@ -70,7 +69,7 @@ jobs:
     needs: 
       - deploy-to-test
       - create-rollout
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment: prod
     container:
       image: docker://bytebase/bytebase-action:latest
