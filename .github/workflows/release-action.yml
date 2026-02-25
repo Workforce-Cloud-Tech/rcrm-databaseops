@@ -23,66 +23,24 @@ jobs:
         run: |
           echo "Building..."
           echo "Build done!"
-          echo "Uploading..."
-          echo "Upload done!"
-  create-rollout:
+
+  create-and-deploy:
     needs: build
-    runs-on: ubuntu-latest # use self-hosted machines if your Bytebase runs in internal networks.
-    container:
-      image: docker://bytebase/bytebase-action:latest
-    outputs:
-      bytebase-plan: ${{ steps.set-output.outputs.plan }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Roll out database change
-        env:
-          BYTEBASE_TARGETS: "instances/test-sample-instance/databases/hr_test,instances/prod-sample-instance/databases/hr_prod"
-          # Update these targets to match your Bytebase instance/database names
-          FILE_PATTERN: "migrations-semver/*.sql"
-          BYTEBASE_OUTPUT: ${{ runner.temp }}/bytebase-metadata.json
-        run: |
-          bytebase-action rollout --url=${{ env.BYTEBASE_URL }} --project=${{ env.BYTEBASE_PROJECT }} --file-pattern=${{ env.FILE_PATTERN }} --targets=${{ env.BYTEBASE_TARGETS }} --output=${{ env.BYTEBASE_OUTPUT }}
-      - name: Set output
-        id: set-output
-        run: |
-          PLAN=$(jq -r .plan ${{ runner.temp }}/bytebase-metadata.json)
-          echo "plan=$PLAN" >> $GITHUB_OUTPUT
-  deploy-to-test:
-    needs: create-rollout
-    runs-on: ubuntu-latest # use self-hosted machines if your Bytebase runs in internal networks.
+    runs-on: ubuntu-latest
     environment: test
     container:
       image: docker://bytebase/bytebase-action:latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Roll out database change
+      - name: Create rollout and deploy
         env:
-          BYTEBASE_TARGET_STAGE: environments/test
+          BYTEBASE_TARGETS: "instances/neo-mr/databases/RecruitCRM_Test"
+          FILE_PATTERN: "migrations-semver/*.sql"
+          BYTEBASE_OUTPUT: ${{ runner.temp }}/bytebase-metadata.json
         run: |
-          bytebase-action rollout --url=${{ env.BYTEBASE_URL }} --project=${{ env.BYTEBASE_PROJECT }} --target-stage=${{ env.BYTEBASE_TARGET_STAGE }}  --plan=${{ needs.create-rollout.outputs.bytebase-plan }}
-      - name: Deploy app
-        run: |
-          echo "Deploying app to test environment..."
-          echo "Deploy app to test environment done!"
-  deploy-to-prod:
-    needs: 
-      - deploy-to-test
-      - create-rollout
-    runs-on: ubuntu-latest
-    environment: prod
-    container:
-      image: docker://bytebase/bytebase-action:latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: rollout
-        env:
-          BYTEBASE_TARGET_STAGE: environments/prod
-        run: |
-          bytebase-action rollout --url=${{ env.BYTEBASE_URL }} --project=${{ env.BYTEBASE_PROJECT }} --target-stage=${{ env.BYTEBASE_TARGET_STAGE }}  --plan=${{ needs.create-rollout.outputs.bytebase-plan }}
-      - name: Deploy app
-        run: |
-          echo "Deploying app to prod environment..."
-          echo "Deploy app to prod environment done!"
+          bytebase-action rollout --url=${{ env.BYTEBASE_URL }} --project=${{ env.BYTEBASE_PROJECT }} --file-pattern=${{ env.FILE_PATTERN }} --targets=${{ env.BYTEBASE_TARGETS }} --output=${{ env.BYTEBASE_OUTPUT }}
+
+          PLAN=$(jq -r .plan ${{ runner.temp }}/bytebase-metadata.json)
+
+          bytebase-action rollout --url=${{ env.BYTEBASE_URL }} --project=${{ env.BYTEBASE_PROJECT }} --target-stage=environments/test --plan=$PLAN
