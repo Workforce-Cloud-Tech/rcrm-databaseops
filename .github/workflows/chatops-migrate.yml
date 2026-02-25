@@ -8,13 +8,13 @@ env:
   BYTEBASE_URL: http://13.232.242.131:8080
   BYTEBASE_SERVICE_ACCOUNT: api-sample@service.bytebase.com
   BYTEBASE_SERVICE_ACCOUNT_SECRET: ${{ secrets.BYTEBASE_SERVICE_ACCOUNT_SECRET }}
-  BYTEBASE_PROJECT: "projects/project-sample"
+  BYTEBASE_PROJECT: "projects/new-project"
   FILE_PATTERN: "migrations-semver/*.sql"
 
 jobs:
   parse-command:
     if: github.event.issue.pull_request && startsWith(github.event.comment.body, '/migrate')
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.parse.outputs.environment }}
       valid-command: ${{ steps.parse.outputs.valid-command }}
@@ -22,6 +22,7 @@ jobs:
       targets: ${{ steps.parse.outputs.targets }}
     steps:
       - name: Write command config
+        # write a bytebase-action-config.yaml file to runner temp directory
         run: |
           cat <<EOF > ${{ runner.temp }}/bytebase-action-config.yaml
           test:
@@ -61,17 +62,17 @@ jobs:
               
               echo "stage=$STAGE" >> $GITHUB_OUTPUT
               echo "targets=$TARGETS" >> $GITHUB_OUTPUT
-              echo "Valid environment: $ENVIRONMENT"
+              echo "✅ Valid environment: $ENVIRONMENT"
               echo "   Stage: $STAGE"
               echo "   Targets: $TARGETS"
             else
               echo "valid-command=false" >> $GITHUB_OUTPUT
-              echo "Invalid environment: $ENVIRONMENT"
+              echo "❌ Invalid environment: $ENVIRONMENT"
               echo "   Valid environments are: $VALID_ENVS"
             fi
           else
             echo "valid-command=false" >> $GITHUB_OUTPUT
-            echo "Invalid command format"
+            echo "❌ Invalid command format"
           fi
 
       - name: Add reaction to comment
@@ -87,7 +88,7 @@ jobs:
         with:
           issue-number: ${{ github.event.issue.number }}
           body: |
-            Invalid migrate command. 
+            ❌ Invalid migrate command. 
 
             **Usage:** `/migrate <environment>`  
             **Valid environments:** `${{ steps.parse.outputs.valid-envs }}`
@@ -98,7 +99,7 @@ jobs:
   deploy:
     needs: parse-command
     if: needs.parse-command.outputs.valid-command == 'true'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     environment: ${{ needs.parse-command.outputs.environment }}
     container:
       image: bytebase/bytebase-action:latest
@@ -114,7 +115,7 @@ jobs:
         with:
           issue-number: ${{ github.event.issue.number }}
           body: |
-            **Migration deployment starting**
+            🚀 **Migration deployment starting**
 
             **Environment:** `${{ needs.parse-command.outputs.environment }}`  
             **PR:** #${{ github.event.issue.number }}
@@ -145,15 +146,19 @@ jobs:
       - name: Extract rollout metadata
         id: extract-metadata
         run: |
+          # Read the metadata file
           METADATA_FILE="${{ runner.temp }}/bytebase-metadata.json"
           
+          # Extract release, plan, and rollout from metadata
           RELEASE=$(jq -r .release "$METADATA_FILE")
           PLAN=$(jq -r .plan "$METADATA_FILE")
           ROLLOUT=$(jq -r .rollout "$METADATA_FILE")
           
+          # Trim trailing slash from BYTEBASE_URL if present
           BASE_URL="${{ env.BYTEBASE_URL }}"
           BASE_URL="${BASE_URL%/}"
           
+          # Output for use in comment
           echo "release=$RELEASE" >> $GITHUB_OUTPUT
           echo "plan=$PLAN" >> $GITHUB_OUTPUT
           echo "rollout=$ROLLOUT" >> $GITHUB_OUTPUT
@@ -165,16 +170,16 @@ jobs:
           comment-id: ${{ steps.deployment-comment.outputs.comment-id }}
           edit-mode: replace
           body: |
-            **Migration deployment in progress**
+            🚀 **Migration deployment in progress**
             
             **Environment:** `${{ needs.parse-command.outputs.environment }}`
             **PR:** #${{ github.event.issue.number }}
             **Triggered by:** @${{ github.event.comment.user.login }}
             
             **Bytebase Resources:**
-            - **Release:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.release }}
-            - **Plan:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.plan }}
-            - **Rollout:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.rollout }}
+            - 📦 **Release:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.release }}
+            - 📝 **Plan:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.plan }}
+            - 🚀 **Rollout:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.rollout }}
             
             Executing database changes...
 
@@ -199,16 +204,16 @@ jobs:
           comment-id: ${{ steps.deployment-comment.outputs.comment-id }}
           edit-mode: replace
           body: |
-            **Migration deployment completed successfully**
+            ✅ **Migration deployment completed successfully**
             
             **Environment:** `${{ needs.parse-command.outputs.environment }}`
             **PR:** #${{ github.event.issue.number }}
             **Triggered by:** @${{ github.event.comment.user.login }}
             
             **Bytebase Resources:**
-            - **Release:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.release }}
-            - **Plan:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.plan }}
-            - **Rollout:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.rollout }}
+            - 📦 **Release:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.release }}
+            - 📝 **Plan:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.plan }}
+            - 🚀 **Rollout:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.rollout }}
             
             Database schema has been successfully updated.
 
@@ -221,15 +226,15 @@ jobs:
           comment-id: ${{ steps.deployment-comment.outputs.comment-id }}
           edit-mode: replace
           body: |
-            **Migration deployment failed**
+            ❌ **Migration deployment failed**
             
             **Environment:** `${{ needs.parse-command.outputs.environment }}`
             **PR:** #${{ github.event.issue.number }}
             **Triggered by:** @${{ github.event.comment.user.login }}
             
             **Bytebase Resources:**
-            - **Release:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.release }}
-            - **Plan:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.plan }}
-            - **Rollout:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.rollout }}
+            - 📦 **Release:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.release }}
+            - 📝 **Plan:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.plan }}
+            - 🚀 **Rollout:** ${{ steps.extract-metadata.outputs.base-url }}/${{ steps.extract-metadata.outputs.rollout }}
             
             Please check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
