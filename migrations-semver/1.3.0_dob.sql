@@ -1,0 +1,2 @@
+ALTER TABLE testtable
+    ADD COLUMN dob INT NOT NULL;
