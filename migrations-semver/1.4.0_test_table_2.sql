@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS test_table_2 (
+    id SERIAL PRIMARY KEY,
+    city VARCHAR(255) NOT NULL,
+    country VARCHAR(255) NOT NULL,
+    state VARCHAR(255) NOT NULL
+);
